@@ -207,11 +207,3 @@ jobs:
           CATBOX_FILE=$(echo $CATBOX_URL | sed 's/https:\/\/files.catbox.moe\//YTLitePlus_/' | sed 's/\.ipa//')
           echo "::set-output name=catbox_url::$CATBOX_URL"
 
-      - name: Create GitHub Release
-        if: ${{ inputs.create_release }}
-        uses: gh-cli/gh-release@v1
-        with:
-          tag_name: "v${{ env.YTLITE_VERSION }}"
-          release_name: "YTLitePlus ${{ env.YTLITE_VERSION }}"
-          body: "Automated release of YTLitePlus."
-          files: ${{ github.workspace }}/main/packages/${{ steps.build_package.outputs.package }}
