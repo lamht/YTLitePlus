@@ -1,6 +1,3 @@
-# Original idea by @ISnackable. Many thanks to him for handling the most hardest parts!
-# https://github.com/ISnackable/CercubePlus/blob/main/.github/workflows/Build.yml
-
 name: Build and Release YTLitePlus
 
 on:
@@ -8,7 +5,7 @@ on:
     inputs:
       sdk_version:
         description: "iOS SDK Version"
-        default: "17.5"
+        default: "18.5" 
         required: true
         type: string
       decrypted_youtube_url:
@@ -99,6 +96,12 @@ jobs:
         env:
           THEOS: ${{ github.workspace }}/theos
 
+      - name: Verify SDK Download
+        run: |
+          echo "Verifying SDK download..."
+          ls -la theos/sdks
+          ls -la theos/sdks/iPhoneOS${{ inputs.sdk_version }}.sdk
+
       - name: Download Theos Jailed
         uses: actions/checkout@v4
         with:
@@ -112,7 +115,7 @@ jobs:
           ./theos-jailed/install
         env:
           THEOS: ${{ github.workspace }}/theos
-        
+
       - name: Fix Compiling
         run: |
           # Update GNU Make to allow for faster building
@@ -194,71 +197,21 @@ jobs:
           name: YTLitePlus_${{ env.YT_VERSION }}_${{ env.YTLITE_VERSION }}
           path: ${{ github.workspace }}/main/packages/${{ steps.build_package.outputs.package }}
           if-no-files-found: error
-          
+
       - name: Upload Artifact to Catbox
         if: ${{ inputs.catbox_upload }}
         run: |
           RESPONSE=$(curl -F "reqtype=fileupload" -F "fileToUpload=@${{ github.workspace }}/main/packages/${{ steps.build_package.outputs.package }}" https://catbox.moe/user/api.php)
           CATBOX_URL=$(echo $RESPONSE | grep -o -E 'https://files.catbox.moe/[^"]*')
           echo "Uploaded artifact to $CATBOX_URL"
-          CATBOX_FILE=$(echo $CATBOX_URL | sed 's|https://files.catbox.moe/||')
-          # Pass Catbox URL to the release steps
-          echo "CATBOX_FILE=$CATBOX_FILE" >> $GITHUB_ENV
-          echo "CATBOX_URL=$CATBOX_URL" >> $GITHUB_ENV
-      
-      - name: Prepare Release Notes
-        if: ${{ inputs.create_release }}
-        run: |
-          export TODAY=$(date '+%Y-%m-%d')
-          sed "s/%ytliteplus_version%/${{ env.YTLITE_VERSION }}/g; s/%youtube_version%/5.0.1/g; s/%catbox_url%/${{ env.CATBOX_FILE }}/g; s/%date%/$TODAY/g" \
-          main/.github/RELEASE_TEMPLATE/Release.md > ${{ github.workspace }}/release_notes.md
+          CATBOX_FILE=$(echo $CATBOX_URL | sed 's/https:\/\/files.catbox.moe\//YTLitePlus_/' | sed 's/\.ipa//')
+          echo "::set-output name=catbox_url::$CATBOX_URL"
 
-      - name: Create Draft Release
+      - name: Create GitHub Release
         if: ${{ inputs.create_release }}
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: gh-cli/gh-release@v1
         with:
-          tag_name: v${{ env.YT_VERSION }}-5.0.1
-          name: v${{ env.YT_VERSION }}-5.0.1 - YTLitePlus
-          files: main/packages/*.ipa
-          draft: true
-          body_path: ${{ github.workspace }}/release_notes.md
-
-      - name: Update Altstore Source with latest release
-        if: ${{ inputs.create_release }}
-        run: |
-          curl --location --request POST 'https://api.github.com/repos/Balackburn/YTLitePlusAltstore/dispatches' \
-          --header 'Authorization: token ${{ secrets.PERSONAL_ACCESS_TOKEN }}' \
-          --header 'Content-Type: application/json' \
-          --data-raw '{
-            "event_type": "update-altstore-source-trigger"
-          }'
-
-      - name: Job Summary
-        run: |
-          echo -e '### 📺 Build Complete' >> $GITHUB_STEP_SUMMARY
-
-      - name: Job Summary - Artifact Upload
-        if: ${{ inputs.upload_artifact }}
-        run: |
-          echo -e '### 📦 Artifact Upload\n\nThe artifact was uploaded successfully! Refresh and [scroll down](#artifacts) to view the artifact. Note that you must be signed in to GitHub to download it.' >> $GITHUB_STEP_SUMMARY
-
-      - name: Job Summary - Catbox Upload
-        if: ${{ inputs.catbox_upload}}
-        run: |
-          echo -e '### 🐱 Catbox Upload\n\nThe Catbox upload was successful! Here is a permanent shareable link: '$CATBOX_URL >> $GITHUB_STEP_SUMMARY
-
-      - name: Job Summary - Draft Release
-        if: ${{ inputs.create_release }}
-        run: |
-          REPO_URL="https://github.com/${{ github.repository }}"
-          RELEASES_URL="$REPO_URL/releases"
-          echo -e '### 🚀 Draft Release\n\nThe release draft has been created successfully! You can view your releases here: '$RELEASES_URL >> $GITHUB_STEP_SUMMARY
-
-      - name: Job Summary - Link to remove GitHub Action runs
-        run: |
-          REPO_URL="https://github.com/${{ github.repository }}"
-          DELETE_RUNS_URL="$REPO_URL/actions/workflows/delete-workflow-runs.yml"
-          echo -e '### 🧹 Cleanup\n\nYou can remove previous GitHub Action runs here: '$DELETE_RUNS_URL >> $GITHUB_STEP_SUMMARY
+          tag_name: "v${{ env.YTLITE_VERSION }}"
+          release_name: "YTLitePlus ${{ env.YTLITE_VERSION }}"
+          body: "Automated release of YTLitePlus."
+          files: ${{ github.workspace }}/main/packages/${{ steps.build_package.outputs.package }}
